@@ -1,0 +1,40 @@
+Revision history for Statistics-Descriptive-LogScale
+
+0.0503	Sat Jun 29 2013
+	Fix stuff before uploading to CPAN.
+
+0.05	Fri Jun 28 2013
+	API frequency_distribution_ref() for histograms
+	API mode() - estimate probability density maximum (EXPERIMENTAL)
+	API Implement all of Statistics::Descriptive::Full
+	API sum_of(CODE, a, b) to sum given function  over sample data
+	API Get rid of mandatory parameters in new()
+	BUG Some bugs fixed, more added.
+	TST Add histogram.pl, compare-full.pl and gen-sample.pl examples
+	REF move binary search into subroutine
+	REF rewrite memoization for great good
+
+0.04	Mon Jun 24 2013
+	RENAME Statistics::Approx::Bucket => Statistics::Descriptive::LogScale
+	REF Rewrite engine: neg + poz + zero counters => one big hash
+	API bucket_width() and zero_threshold() getters
+	API mean_of( $function, $min, $max ) - arbitrary function expectation
+	BUG Fix another log abs(x) error, fix test
+
+0.03	Sun Jun 16 2013
+	API add_data_hash/get_data_hash data export/import
+	API central/standardized moments of any power
+	API geometric_mean, harmonic_mean, quantile, median
+	BIN Add example/summary.pl
+	SPD Add result caching for CPU-intensive getters
+	TST More tests (coverage 93%)
+	BUG Numerous bugfixes
+
+0.02    Mon Jun 10 2013
+	API count, mean, and standard deviation added.
+	DOC a brief description and aknowledgements added.
+
+0.01    Mon Jun 10 2013
+        First version, released on an unsuspecting world.
+	API percentile and add_data added.
+
