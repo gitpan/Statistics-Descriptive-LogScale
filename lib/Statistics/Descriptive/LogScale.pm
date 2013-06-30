@@ -15,7 +15,7 @@ Version 0.05
 
 =cut
 
-our $VERSION = 0.0505;
+our $VERSION = 0.0507;
 
 =head1 SYNOPSIS
 
@@ -109,31 +109,13 @@ sub new {
 	return $self;
 };
 
-=head2 bucket_width()
+=head1 General statistical methods
 
-Get bucket width (relative to center of bucket). Percentiles are off
-by no more than half of this.
+These methods are used to query the distribution properties. They generally
+follow the interface of L<Statistics::Descriptive> and co,
+with minor additions.
 
-=cut
-
-sub bucket_width {
-	my $self = shift;
-	return $self->{base} - 1;
-};
-
-=head2 zero_threshold()
-
-Get zero threshold. Numbers with absolute value below this are considered
-zeroes.
-
-=cut
-
-sub zero_threshold {
-	my $self = shift;
-	return $self->{zero_thresh};
-};
-
-=head2 clear()
+=head2 clear
 
 Destroy all stored data.
 
@@ -164,43 +146,9 @@ sub add_data {
 	};
 };
 
-=head2 add_data_hash ( { value => count, ... } )
-
-Add values with counts.
-
-=cut
-
-sub add_data_hash {
-	my $self = shift;
-	my $hash = shift;
-
-	delete $self->{cache};
-	foreach (keys %$hash) {
-		$self->{count} += $hash->{$_};
-		$self->{data}{ $self->_round($_) } += $hash->{$_};
-	};
-};
-
-=head2 get_data_hash()
-
-Return distribution hashref {value => number of occurances}.
-
-This is inverse of add_data_hash.
-
-=cut
-
-sub get_data_hash {
-	my $self = shift;
-
-	# shallow copy of data
-	my $hash = {%{ $self->{data} }};
-	return $hash;
-
-};
-
 =head2 count
 
-Return number of data points.
+Returns number of data points.
 
 =cut
 
@@ -209,7 +157,39 @@ sub count {
 	return $self->{count};
 };
 
-=head2 sum()
+=head2 min
+
+=head2 max
+
+Values of minimal and maximal buckets.
+
+NOTE: Due to rounding, some of the actual inserted values may fall outside
+of the min..max range. This may change in the future.
+
+=cut
+
+sub min {
+	my $self = shift;
+	return $self->_sort->[0];
+};
+
+sub max {
+	my $self = shift;
+	return $self->_sort->[-1];
+};
+
+=head2 sample_range
+
+Return sample range of the dataset, i.e. max() - min().
+
+=cut
+
+sub sample_range {
+	my $self = shift;
+	return $self->max - $self->min;
+};
+
+=head2 sum
 
 Return sum of all data points.
 
@@ -220,7 +200,7 @@ sub sum {
 	return $self->sum_of(sub { $_[0] });
 };
 
-=head2 sumsq()
+=head2 sumsq
 
 Return sum of squares of all datapoints.
 
@@ -231,7 +211,7 @@ sub sumsq {
 	return $self->sum_of(sub { $_[0] * $_[0] });
 };
 
-=head2 mean()
+=head2 mean
 
 Return mean, which is sum()/count().
 
@@ -242,7 +222,7 @@ sub mean {
 	return $self->{count} ? $self->sum / $self->{count} : undef;
 };
 
-=head2 variance()
+=head2 variance
 
 Return data variance, i.e. E((x - E(x)) ** 2).
 
@@ -261,9 +241,9 @@ sub variance {
 	return $var <= 0 ? 0 : $var / ( $self->{count} - $div );
 };
 
-=head2 standard_deviation()
+=head2 standard_deviation
 
-=head2 std_dev()
+=head2 std_dev
 
 Return standard deviation (square root of variance).
 
@@ -276,33 +256,23 @@ sub standard_deviation {
 	return sqrt($self->variance());
 };
 
-=head2 min()
+=head2 cdf ($x)
 
-=head2 max()
+Cumulative distribution function. Returns estimated probability of
+random data point from the sample being less than $x.
 
-Values of minimal and maximal buckets.
+As a special case, cdf(0) accounts for I<half> of zeroth bucket count (if any).
 
-=cut
-
-sub min {
-	my $self = shift;
-	return $self->_sort->[0];
-};
-
-sub max {
-	my $self = shift;
-	return $self->_sort->[-1];
-};
-
-=head2 sample_range()
-
-Return sample range of the dataset, i.e. max() - min().
+Not present in Statistics::Descriptive::Full, but appears in
+L<Statistics::Descriptive::Weighted>.
 
 =cut
 
-sub sample_range {
+sub cdf {
 	my $self = shift;
-	return $self->max - $self->min;
+	my $x = shift;
+	return unless $self->{count};
+	return $self->_count($x) / $self->{count};
 };
 
 =head2 percentile( $n )
@@ -356,7 +326,7 @@ sub quantile {
 	return $self->percentile($t * 100 / 4);
 };
 
-=head2 median()
+=head2 median
 
 Return median of data, a value that divides the sample in half.
 Same as percentile(50).
@@ -366,88 +336,6 @@ Same as percentile(50).
 sub median {
 	my $self = shift;
 	return $self->percentile(50);
-};
-
-=head2 harmonic_mean()
-
-Return harmonic mean of the data, i.e. 1/E(1/x).
-
-Return undef if division by zero occurs (see Statistics::Descriptive).
-
-=cut
-
-sub harmonic_mean {
-	my $self = shift;
-
-	my $ret;
-	eval {
-		$ret = $self->count / $self->sum_of(sub { 1/$_[0] });
-	};
-	if ($@ and $@ !~ /division.*zero/) {
-		die $@; # rethrow ALL BUT 1/0 which yields undef
-	};
-	return $ret;
-};
-
-=head2 geometric_mean()
-
-Return geometric mean of the data, that is, exp(E(log x)).
-
-Dies unless all data points are of the same sign.
-
-=cut
-
-sub geometric_mean {
-	my $self = shift;
-
-	croak __PACKAGE__.": geometric_mean() called on mixed sign sample"
-		if $self->min * $self->max < 0;
-
-	return 0 if $self->{data}{0};
-	# this must be dog slow, but we already log() too much at this point.
-	my $ret = exp( $self->sum_of( sub { log abs $_[0] } ) / $self->{count} );
-	return $self->min < 0 ? -$ret : $ret;
-};
-
-=head2 skewness()
-
-Return skewness of the distribution, calculated as
-n/(n-1)(n-2) * E((x-E(x))**3)/std_dev**3 (this is consistent with Excel).
-
-=cut
-
-sub skewness {
-	my $self = shift;
-
-	my $n = $self->{count};
-	return unless $n > 2;
-
-	# code stolen from Statistics::Descriptive
-	my $skew = $n * $self->std_moment(3);
-	my $correction = $n / ( ($n-1) * ($n-2) );
-	return $correction * $skew;
-};
-
-=head2 kurtosis()
-
-Return kurtosis of the distribution, that is 4-th standardized moment - 3.
-The exact formula used here is consistent with that of Excel and
-Statistics::Descriptive.
-
-=cut
-
-sub kurtosis {
-	my $self = shift;
-
-	my $n = $self->{count};
-	return unless $n > 3;
-
-	# code stolen from Statistics::Descriptive
-	my $kurt = $n * $self->std_moment(4);
-	my $correction1 = ( $n * ($n+1) ) / ( ($n-1) * ($n-2) * ($n-3) );
-	my $correction2 = ( 3  * ($n-1) ** 2) / ( ($n-2) * ($n-3) );
-
-	return $correction1 * $kurt - $correction2;
 };
 
 =head2 trimmed_mean( $ltrim, [ $utrim ] )
@@ -473,9 +361,93 @@ sub trimmed_mean {
 	return $self->mean_of(sub{$_[0]}, $min, $max);
 };
 
+=head2 harmonic_mean
+
+Return harmonic mean of the data, i.e. 1/E(1/x).
+
+Return undef if division by zero occurs (see Statistics::Descriptive).
+
+=cut
+
+sub harmonic_mean {
+	my $self = shift;
+
+	my $ret;
+	eval {
+		$ret = $self->count / $self->sum_of(sub { 1/$_[0] });
+	};
+	if ($@ and $@ !~ /division.*zero/) {
+		die $@; # rethrow ALL BUT 1/0 which yields undef
+	};
+	return $ret;
+};
+
+=head2 geometric_mean
+
+Return geometric mean of the data, that is, exp(E(log x)).
+
+Dies unless all data points are of the same sign.
+
+=cut
+
+sub geometric_mean {
+	my $self = shift;
+
+	croak __PACKAGE__.": geometric_mean() called on mixed sign sample"
+		if $self->min * $self->max < 0;
+
+	return 0 if $self->{data}{0};
+	# this must be dog slow, but we already log() too much at this point.
+	my $ret = exp( $self->sum_of( sub { log abs $_[0] } ) / $self->{count} );
+	return $self->min < 0 ? -$ret : $ret;
+};
+
+=head2 skewness
+
+Return skewness of the distribution, calculated as
+n/(n-1)(n-2) * E((x-E(x))**3)/std_dev**3 (this is consistent with Excel).
+
+=cut
+
+sub skewness {
+	my $self = shift;
+
+	my $n = $self->{count};
+	return unless $n > 2;
+
+	# code stolen from Statistics::Descriptive
+	my $skew = $n * $self->std_moment(3);
+	my $correction = $n / ( ($n-1) * ($n-2) );
+	return $correction * $skew;
+};
+
+=head2 kurtosis
+
+Return kurtosis of the distribution, that is 4-th standardized moment - 3.
+The exact formula used here is consistent with that of Excel and
+Statistics::Descriptive.
+
+=cut
+
+sub kurtosis {
+	my $self = shift;
+
+	my $n = $self->{count};
+	return unless $n > 3;
+
+	# code stolen from Statistics::Descriptive
+	my $kurt = $n * $self->std_moment(4);
+	my $correction1 = ( $n * ($n+1) ) / ( ($n-1) * ($n-2) * ($n-3) );
+	my $correction2 = ( 3  * ($n-1) ** 2) / ( ($n-2) * ($n-3) );
+
+	return $correction1 * $kurt - $correction2;
+};
+
 =head2 central_moment( $n )
 
 Return $n-th central moment, that is, E((x - E(x))^$n).
+
+Not present in Statistics::Descriptive::Full.
 
 =cut
 
@@ -491,6 +463,8 @@ sub central_moment {
 
 Return $n-th standardized moment, that is,
 E((x - E(x))**$n) / std_dev(x)**$n.
+
+Not present in Statistics::Descriptive::Full.
 
 =cut
 
@@ -618,8 +592,7 @@ sub frequency_distribution_ref {
 
 	my @count;
 	for (my $i = 0; $i<@$index-1; $i++) {
-		push @count, $self->sum_of( sub{1},
-			$index->[$i], $index->[$i+1] );
+		push @count, $self->_count( $index->[$i], $index->[$i+1] );
 	};
 	shift @$index; # remove -inf
 
@@ -627,6 +600,71 @@ sub frequency_distribution_ref {
 	@hash{@$index} = @count;
 	$self->{cache}{frequency_distribution_ref} = \%hash;
 	return \%hash;
+};
+
+=head1 Specific methods
+
+The folowing methods only apply to this module, or are experimental.
+
+=cut
+
+=head2 bucket_width
+
+Get bucket width (relative to center of bucket). Percentiles are off
+by no more than half of this.
+
+=cut
+
+sub bucket_width {
+	my $self = shift;
+	return $self->{base} - 1;
+};
+
+=head2 zero_threshold
+
+Get zero threshold. Numbers with absolute value below this are considered
+zeroes.
+
+=cut
+
+sub zero_threshold {
+	my $self = shift;
+	return $self->{zero_thresh};
+};
+
+=head2 add_data_hash ( { value => weight, ... } )
+
+Add values with weights. This can be used to import data from other
+Statistics::Descriptive::LogScale object.
+
+=cut
+
+sub add_data_hash {
+	my $self = shift;
+	my $hash = shift;
+
+	delete $self->{cache};
+	foreach (keys %$hash) {
+		$self->{count} += $hash->{$_};
+		$self->{data}{ $self->_round($_) } += $hash->{$_};
+	};
+};
+
+=head2 get_data_hash
+
+Return distribution hashref {value => number of occurances}.
+
+This is inverse of add_data_hash.
+
+=cut
+
+sub get_data_hash {
+	my $self = shift;
+
+	# shallow copy of data
+	my $hash = {%{ $self->{data} }};
+	return $hash;
+
 };
 
 =head2 mean_of( $code, [$min, $max] )
@@ -648,65 +686,6 @@ sub mean_of {
 	my $weight = $self->sum_of( sub {1}, $min, $max );
 	return unless $weight;
 	return $self->sum_of($code, $min, $max) / $weight;
-};
-
-# We'll keep methods' returned values under {cache}.
-# All setters destroy said cache altogether.
-# PLEASE replace this with a ready-made module if there's one.
-
-# Sorry for this black magic, but it's too hard to write //= in EVERY method
-# Long story short
-# The next sub replaces $self->foo() with
-# sub { $self->{cache}{foo} //= $self->originnal_foo }
-# All setter methods are EXPECTED to destroy {cache} altogether.
-
-# NOTE if you plan subclassing the method, re-memoize methods you change.
-sub _memoize_method {
-	my ($class, $name, $arg) = @_;
-
-	my $orig_code = $class->can($name);
-	die "Error in memoizer section ($name)"
-		unless ref $orig_code eq 'CODE';
-
-	# begin long conditional
-	my $cached_code = !$arg
-	? sub {
-		if (!exists $_[0]->{cache}{$name}) {
-			$_[0]->{cache}{$name} = $orig_code->($_[0]);
-		};
-		return $_[0]->{cache}{$name};
-	}
-	: sub {
-		my $self = shift;
-		my $arg = shift;
-		$arg = '' unless defined $arg;
-
-		if (!exists $self->{cache}{"$name:$arg"}) {
-			$self->{cache}{"$name:$arg"} = $orig_code->($self, $arg);
-		};
-		return $self->{cache}{"$name:$arg"};
-	};
-	# conditional ends here
-
-	no strict 'refs'; ## no critic
-	no warnings 'redefine'; ## no critic
-	*{$class."::".$name} = $cached_code;
-}; # end of _memoize_method
-
-# Memoize all the methods w/o arguments
-foreach ( qw(sum sumsq mean min max variance standard_deviation mode) ) {
-	__PACKAGE__->_memoize_method($_);
-};
-
-# Memoize methods with 1 argument
-foreach ( qw(quantile central_moment std_moment) ) {
-	__PACKAGE__->_memoize_method($_, 1);
-};
-
-# add shorter alias of standard_deviation (this must happen AFTER memoization)
-{
-	no warnings 'once'; ## no critic
-	*std_dev = \&standard_deviation;
 };
 
 =head2 sum_of ( $code, [ $min, $max ] )
@@ -784,6 +763,88 @@ sub sum_of {
 }; # end sum_of
 
 
+# We'll keep methods' returned values under {cache}.
+# All setters destroy said cache altogether.
+# PLEASE replace this with a ready-made module if there's one.
+
+# Sorry for this black magic, but it's too hard to write //= in EVERY method
+# Long story short
+# The next sub replaces $self->foo() with
+# sub { $self->{cache}{foo} //= $self->originnal_foo }
+# All setter methods are EXPECTED to destroy {cache} altogether.
+
+# NOTE if you plan subclassing the method, re-memoize methods you change.
+sub _memoize_method {
+	my ($class, $name, $arg) = @_;
+
+	my $orig_code = $class->can($name);
+	die "Error in memoizer section ($name)"
+		unless ref $orig_code eq 'CODE';
+
+	# begin long conditional
+	my $cached_code = !$arg
+	? sub {
+		if (!exists $_[0]->{cache}{$name}) {
+			$_[0]->{cache}{$name} = $orig_code->($_[0]);
+		};
+		return $_[0]->{cache}{$name};
+	}
+	: sub {
+		my $self = shift;
+		my $arg = shift;
+		$arg = '' unless defined $arg;
+
+		if (!exists $self->{cache}{"$name:$arg"}) {
+			$self->{cache}{"$name:$arg"} = $orig_code->($self, $arg);
+		};
+		return $self->{cache}{"$name:$arg"};
+	};
+	# conditional ends here
+
+	no strict 'refs'; ## no critic
+	no warnings 'redefine'; ## no critic
+	*{$class."::".$name} = $cached_code;
+}; # end of _memoize_method
+
+# Memoize all the methods w/o arguments
+foreach ( qw(sum sumsq mean min max standard_deviation mode) ) {
+	__PACKAGE__->_memoize_method($_);
+};
+
+# Memoize methods with 1 argument
+foreach ( qw(quantile central_moment std_moment) ) {
+	__PACKAGE__->_memoize_method($_, 1);
+};
+
+# add shorter alias of standard_deviation (this must happen AFTER memoization)
+{
+	no warnings 'once'; ## no critic
+	*std_dev = \&standard_deviation;
+};
+
+# Get number of values below $x
+# Like sum_of(sub{1}, undef, $x), but faster.
+# Used by cdf()
+sub _count {
+	my $self = shift;
+	@_>1 and return $self->_count($_[1]) - $self->_count($_[0]);
+	my $x = shift;
+
+	my $upper = $self->_upper($x);
+	my $i = _bin_search_gt( $self->_sort, $upper );
+	!$i-- and return 0;
+	my $count = $self->_probability->[$i];
+
+	# interpolate
+	my $bucket = $self->_round( $x );
+	if (my $val = $self->{data}{$bucket}) {
+		my $width = ($upper - $bucket) * 2;
+		my $part = $width ? ( ($upper - $x) / $width) : 1/2;
+		$count -= $part * $val;
+	};
+	return $count;
+};
+
 # BINARY SEARCH
 # Not a method, just a function
 # Takes sorted \@array and a $num
@@ -800,6 +861,12 @@ sub _bin_search_ge {
 		$array->[$m] < $x ? $l = $m : $r = $m;
 	};
 	return $l+1;
+};
+sub _bin_search_gt {
+	my ($array, $x) = @_;
+	my $i = _bin_search_ge(@_);
+	$i++ if defined $array->[$i] and $array->[$i] == $x;
+	return $i;
 };
 
 sub _round {
@@ -834,12 +901,14 @@ sub _lower {
 	return -$_[0]->_upper(-$_[1]);
 };
 
+# build bucket index
 sub _sort {
 	my $self = shift;
 	return $self->{cache}{sorted}
 		||= [ sort { $a <=> $b } keys %{ $self->{data} } ];
 };
 
+# build cumulative bucket counts index
 sub _probability {
 	my $self = shift;
 	return $self->{cache}{probability} ||= do {
