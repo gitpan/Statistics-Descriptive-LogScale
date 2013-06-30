@@ -2,6 +2,7 @@
 
 use strict;
 use Test::More tests => 7;
+use Test::Number::Delta within => 1e-6;
 use Data::Dumper;
 
 use Statistics::Descriptive::LogScale;
@@ -18,9 +19,9 @@ foreach (1..100) {
 
 $stat->add_data(@data);
 
-near_zero ($stat->mean_of(sub { $_[0]}, -exp 3, exp 3),
+delta_ok ($stat->mean_of(sub { $_[0]}, -exp 3, exp 3), 0,
 	"mean of odd function over symmetric interval == 0");
-near_zero ($stat->mean_of(sub { $_[0]*$_[0]*$_[0]}, -exp 3, exp 3),
+delta_ok ($stat->mean_of(sub { $_[0]*$_[0]*$_[0]}, -exp 3, exp 3), 0,
 	"mean of LARGE odd function over symmetric interval == 0");
 cmp_ok ($stat->mean_of(sub { $_[0]}, 0, exp 3), ">", 0,
 	"biased to the right => positive");
@@ -29,8 +30,8 @@ cmp_mean( sub { $_[0]**3 } , 0, 30, "cube 0..30" );
 cmp_mean( sub { $_[0]**4 } , 0, 30, "cube 0..30" );
 cmp_mean( sub { 1 } , 0, 30, "cube 0..30" );
 
-near_zero ($stat->sum_of(sub{ 1 }, undef, 0)
-	-  $stat->sum_of(sub{ 1 }, 0, undef), "integrate up to zero = ok");
+delta_ok ($stat->sum_of(sub{ 1 }, undef, 0),
+	$stat->sum_of(sub{ 1 }, 0, undef), "integrate up to zero = ok");
 
 #######
 my $total_off;
@@ -43,11 +44,6 @@ sub about {
 	$total_off += $off;
 	my $ret = ok ( $off < $PRECISION , $msg . " (exp = $exp, got = $got)");
 	return $ret;
-};
-
-sub near_zero {
-	my ($number, $msg) = @_;
-	return ok (abs($number) < 1E-6, "$msg ($number ~~ 0)");
 };
 
 sub naive_mean_of {
