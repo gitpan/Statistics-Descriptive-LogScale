@@ -2,6 +2,7 @@
 
 use strict;
 use GD::Simple;
+use Getopt::Long;
 
 # always prefer local version of module
 use FindBin qw($Bin);
@@ -11,23 +12,29 @@ use Statistics::Descriptive::LogScale;
 my %opt = (width => 600, height => 200, trim => 0);
 
 # Don't require module just in case
-if ( eval { require Getopt::Long; 1; } ) {
-	Getopt::Long->import;
-	GetOptions (
-		'base=s' => \$opt{base},
-		'floor=s' => \$opt{zero},
-		'width=s' => \$opt{width},
-		'height=s' => \$opt{height},
-		'trim=s' => \$opt{trim},
-		'help' => sub {
-			print "Usage: $0 [--base <1+small o> --floor <nnn>] [<n>]\n";
-			print "Read numbers from STDIN, output histogram\n";
-			print "Number of sections = n (default 20)";
-			exit 2;
-		},
-	);
+GetOptions (
+	'base=s' => \$opt{base},
+	'floor=s' => \$opt{zero},
+	'width=s' => \$opt{width},
+	'height=s' => \$opt{height},
+	'trim=s' => \$opt{trim},
+	'help' => sub {
+		print "Usage: $0 [--base <1+small o> --floor <nnn>] pic.png\n";
+		print "Read numbers from STDIN, output histogram\n";
+		print "Number of sections = n (default 20)";
+		exit 2;
+	},
+);
+
+# Where to write the pic
+my $out = shift;
+
+defined $out or die "No output file given";
+my $fd;
+if ($out eq '-') {
+	$fd = \*STDOUT;
 } else {
-	@ARGV and die "Options given, but no Getopt::Long support";
+	open ($fd, ">", $out) or die "Failed to open $out: $!";
 };
 
 my $stat = Statistics::Descriptive::LogScale->new(
@@ -74,5 +81,5 @@ foreach (@hist) {
 	$i++;
 };
 
-print $gd->png;
+print $fd $gd->png;
 

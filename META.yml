@@ -1,5 +1,5 @@
 ---
-abstract: 'approximate statistical distribution class'
+abstract: 'Memory-efficient approximate descriptive statistics class.'
 author:
   - 'Konstantin S. Uvarin <khedin@gmail.com>'
 build_requires:
@@ -24,4 +24,4 @@ no_index:
 requires:
   Carp: 0
   POSIX: 0
-version: 0.0507
+version: 0.0509

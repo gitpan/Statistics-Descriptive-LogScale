@@ -6,8 +6,7 @@ package Statistics::Descriptive::LogScale;
 
 =head1 NAME
 
-Statistics::Descriptive::LogScale - approximate statistical distribution class
-using logarithmic buckets to store data.
+Statistics::Descriptive::LogScale - Memory-efficient approximate descriptive statistics class.
 
 =head1 VERSION
 
@@ -15,7 +14,7 @@ Version 0.05
 
 =cut
 
-our $VERSION = 0.0507;
+our $VERSION = 0.0509;
 
 =head1 SYNOPSIS
 
@@ -41,7 +40,7 @@ Data is represented by a set of logarithmic buckets only storing counters.
 Data with absolute value below certain threshold ("floor") is stored in a
 special zero counter.
 All operations are performed on the buckets, introducing relative error
-which does not however exceed the buckets' width ("base").
+which does not, however, exceed the buckets' width ("base").
 
 =head1 METHODS
 
@@ -65,6 +64,9 @@ use fields qw(
 	count
 	cache
 );
+
+# This is for infinite portability^W^W portable infinity
+my $inf = 9**9**9;
 
 =head2 new( %options )
 
@@ -588,7 +590,7 @@ sub frequency_distribution_ref {
 		$index = [ map { $min + $_ * $step } 1..$index ];
 	};
 
-	@$index = ("-inf", sort { $a <=> $b } @$index);
+	@$index = (-$inf, sort { $a <=> $b } @$index);
 
 	my @count;
 	for (my $i = 0; $i<@$index-1; $i++) {
@@ -715,8 +717,8 @@ sub sum_of {
 		return $sum;
 	};
 
-	$realmin = "-inf" unless defined $realmin;
-	$realmax =  "inf" unless defined $realmax;
+	$realmin = -$inf unless defined $realmin;
+	$realmax =  $inf unless defined $realmax;
 	return 0 if( $realmin >= $realmax );
 
 	# correct limits. $min, $max are indices; $left, $right are limits

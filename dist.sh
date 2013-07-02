@@ -1,6 +1,6 @@
-#!/bin/sh
+#!/bin/bash
 
-PERLS="5.6.0 5.8.8 5.18.0"
+PERLS="5.8.8 5.18.0"
 
 die () {
 	echo "FATAL:" $1 >&2
@@ -37,8 +37,10 @@ USED=`perl -wle 'for(@ARGV) { $m=$_; s#::#/#g; -f "lib/$_.pm" or print $m }' $US
 
 # check make test on several perls
 FAILS=
+source ~/perl5/perlbrew/etc/bashrc
 for i in $PERLS; do
 	perlbrew switch "perl-$i" || continue
+	perl --version; 
 	prove -I lib t/ || FAILS="$FAILS $i"
 done
 
@@ -49,5 +51,8 @@ prove -I lib t/ || FAILS="$FAILS system-perl"
 
 # OK, now tag && make dist
 
-git tag "v.$VER" -m "Version $VER released"
+git tag "v.$VER" -m "Version $VER released" ||\
+	die "Cannot create tag for release $VER"
+
+# And FINALLY!
 make dist

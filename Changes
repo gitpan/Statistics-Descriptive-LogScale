@@ -1,5 +1,9 @@
 Revision history for Statistics-Descriptive-LogScale
 
+0.0509	Tue Jul 2 2013
+	DOC Minor POD improvement
+	BUG Make infinity portable
+
 0.0507	Sun Jun 30 2013
 	BUG Fix bugs revealed by CPAN testers (mainly in tests)
 	API add cdf($x) method - cumulative distribution function, P(X<$x)
