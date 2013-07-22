@@ -17,14 +17,30 @@ GetOptions (
 	'floor=s' => \$opt{zero},
 	'width=s' => \$opt{width},
 	'height=s' => \$opt{height},
-	'trim=s' => \$opt{trim},
-	'help' => sub {
-		print "Usage: $0 [--base <1+small o> --floor <nnn>] pic.png\n";
-		print "Read numbers from STDIN, output histogram\n";
-		print "Number of sections = n (default 20)";
-		exit 2;
-	},
-);
+	'ltrim=s' => \$opt{ltrim},
+	'utrim=s' => \$opt{utrim},
+	'min=s' => \$opt{min},
+	'max=s' => \$opt{max},
+	'help' => \&usage,
+) or usage();
+
+sub usage {
+	print STDERR <<"EOF";
+Usage: $0 [options] pic.png
+Read numbers from STDIN, output histogram as a png file.
+Options may include:
+  --width <nnn>
+  --height <nnn> - size of picture
+  --base <1 + small o> - relative precision of underlying engine
+  --floor <positive number> - count all below this as zero
+  --ltrim <0..100> - cut that % off from the left
+  --utrim <0..100> - cut that % off from the right
+  --min <xxx> - strip data below this value
+  --max <xxx> - strip data above this value
+  --help - this message
+EOF
+	exit 2;
+};
 
 # Where to write the pic
 my $out = shift;
@@ -37,6 +53,9 @@ if ($out eq '-') {
 	open ($fd, ">", $out) or die "Failed to open $out: $!";
 };
 
+# sane default for precision = 1 pixel at right/left side
+$opt{base} = 1+1/$opt{width} unless defined $opt{base};
+
 my $stat = Statistics::Descriptive::LogScale->new(
 	base => $opt{base}, zero_thresh => $opt{zero});
 
@@ -46,27 +65,13 @@ while (<STDIN>) {
 
 my ($width, $height) = @opt{"width", "height"};
 
-my $start = $stat->percentile($opt{trim}) // $stat->_lower($stat->min);
-my $end = $stat->percentile(100-$opt{trim});
-my $step = ($end - $start) / $width;
-my @index = map { $start + $step * $_ } 0..$width;
-
-# warn "Working on $start..$end: @index\n";
-
-# preprocess histogram
-my $hist_hash = $stat->frequency_distribution_ref(\@index);
-
-# warn "hist = ".join " ", map { sprintf "%0.2f:%0.1f", $_, $hist_hash->{$_} }
-#	sort { $a <=> $b } keys %$hist_hash;
-
-my @hist = map { $hist_hash->{$_} } sort { $a <=> $b } keys %$hist_hash;
-shift @hist;
+my $hist = $stat->histogram( %opt, count => $width);
 
 my $trimmer = Statistics::Descriptive::LogScale->new;
-$trimmer->add_data(@hist);
+$trimmer->add_data(map { $_->[0]} @$hist);
 
-my $max = $trimmer->percentile(99)/0.7;
-$_ /= $max for @hist;
+my $max_val = $trimmer->percentile(99)/0.7;
+$_->[0] /= $max_val for @$hist;
 
 # warn "hist = @hist\n";
 # draw!
@@ -74,12 +79,30 @@ my $gd = GD::Simple->new($width, $height);
 $gd->bgcolor('white');
 $gd->clear;
 
+my $scale = 10;
+
+foreach (1 .. ($scale-1)) {
+	$gd->fgcolor( 'blue' );
+	$gd->line( $width * ($_/$scale), 0, $width * ($_/$scale), $height );
+};
+
 my $i=0;
-foreach (@hist) {
-	$gd->fgcolor( $_ > 1 ? 'red' : 'orange');
-	$gd->line($i, $height, $i, $height*(1-$_));
+foreach (@$hist) {
+	$gd->fgcolor( $_->[0] > 1 ? 'red' : 'orange');
+	$gd->line($i, $height, $i, $height*(1-$_->[0]));
 	$i++;
 };
 
-print $fd $gd->png;
+my $min = $hist->[0][1];
+my $max = $hist->[-1][2];
+my $range = $max - $min;
 
+foreach (0 .. ($scale-1)) {
+	$gd->fgcolor( 'blue' );
+	$gd->moveTo( $width * ($_/$scale) + 2, 10 );
+	$gd->fontsize( 8 );
+	$gd->font( "Times" );
+	$gd->string( sprintf("%0.1f", $min + $range*$_/$scale) );
+};
+
+print $fd $gd->png;

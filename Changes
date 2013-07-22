@@ -1,5 +1,11 @@
 Revision history for Statistics-Descriptive-LogScale
 
+0.06	Wed Jul 10 2013
+	TST Add png example
+	API Add histogram() - better frequency_distribution_ref
+	API Add scale_sample() to gradually "forget" data
+	API Add find_boundaries to get (min, max) of selected sample part
+
 0.0509	Tue Jul 2 2013
 	DOC Minor POD improvement
 	BUG Make infinity portable

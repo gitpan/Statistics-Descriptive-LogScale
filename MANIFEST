@@ -25,6 +25,8 @@ t/10-bin_search_private.t
 t/11-skew-kurt.t
 example/png-histogram.pl
 example/stat.psgi
-dist.sh
+TODO
+t/12-bounds.t
+t/13-scale.t
 META.yml                                 Module YAML meta-data (added by MakeMaker)
 META.json                                Module JSON meta-data (added by MakeMaker)

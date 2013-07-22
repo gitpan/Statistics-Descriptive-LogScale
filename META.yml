@@ -24,4 +24,4 @@ no_index:
 requires:
   Carp: 0
   POSIX: 0
-version: 0.0509
+version: 0.06

@@ -7,6 +7,7 @@ use Data::Dumper;
 
 use Statistics::Descriptive::LogScale;
 
+my $inf = 9**9**9;
 my $PRECISION = 10**(1/10) - 1;
 
 my $stat =  Statistics::Descriptive::LogScale->new(
@@ -48,8 +49,8 @@ sub about {
 
 sub naive_mean_of {
 	my ($data, $code, $min, $max) = @_;
-	$min = "-inf" unless defined $min;
-	$max = "-max" unless defined $max;
+	$min = -$inf unless defined $min;
+	$max = $inf unless defined $max;
 	my $sum = 0;
 	my $count = 0;
 	foreach (@$data) {

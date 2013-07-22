@@ -10,13 +10,15 @@ Statistics::Descriptive::LogScale - Memory-efficient approximate descriptive sta
 
 =head1 VERSION
 
-Version 0.05
+Version 0.06
 
 =cut
 
-our $VERSION = 0.0509;
+our $VERSION = 0.06;
 
 =head1 SYNOPSIS
+
+The basic usage is roughly the same as that of L<Statistics::Descriptive::Full>.
 
     use Statistics::Descriptive::LogScale;
     my $stat = Statistics::Descriptive::LogScale->new ();
@@ -34,11 +36,12 @@ our $VERSION = 0.0509;
 =head1 DESCRIPTION
 
 This module aims at providing some advanced statistical functions without
-storing all data in memory, at the cost of some precision loss.
+storing all data in memory, at the cost of certain (predictable) precision loss.
 
 Data is represented by a set of logarithmic buckets only storing counters.
-Data with absolute value below certain threshold ("floor") is stored in a
-special zero counter.
+Data with absolute value below certain threshold (which may be zero)
+is stored in a special zero counter.
+
 All operations are performed on the buckets, introducing relative error
 which does not, however, exceed the buckets' width ("base").
 
@@ -59,9 +62,8 @@ use Carp;
 use POSIX qw(floor);
 
 use fields qw(
-	data
+	data count
 	base logbase floor zero_thresh logfloor
-	count
 	cache
 );
 
@@ -669,6 +671,27 @@ sub get_data_hash {
 
 };
 
+=head2 scale_sample( $scale )
+
+Multiply all buckets' counts by given value. This can be used to adjust
+significance of previous data before adding new data (e.g. gradually
+"forgetting" past data in a long-running application).
+
+=cut
+
+sub scale_sample {
+	my $self = shift;
+	my $factor = shift;
+	$factor > 0 or croak (__PACKAGE__.": scale_sample: factor must be positive");
+
+	delete $self->{cache};
+	foreach (@{ $self->_sort }) {
+		$self->{data}{$_} *= $factor;
+	};
+	$self->{count} *= $factor;
+	return $self;
+};
+
 =head2 mean_of( $code, [$min, $max] )
 
 Return expectation of $code over sample within given range.
@@ -689,6 +712,11 @@ sub mean_of {
 	return unless $weight;
 	return $self->sum_of($code, $min, $max) / $weight;
 };
+
+=head1 Experimental methods
+
+These methods may be subject to change in the future, or stay, if they
+are good.
 
 =head2 sum_of ( $code, [ $min, $max ] )
 
@@ -764,7 +792,113 @@ sub sum_of {
 	return $sum;
 }; # end sum_of
 
+=head2 histogram ( %options )
 
+Returns array of form [ [ count0_1, x0, x1 ], [count1_2, x1, x2 ], ... ]
+where countX_Y is number of data points between X and Y.
+
+Options may include:
+
+=over
+
+=item * count (+) - number of intervals to divide sample into.
+
+=item * index (+) - interval borders as array. Will be sorted before processing.
+
+=item * min - ignore values below this. default = max + epsilon.
+
+=item * max - ignore values above this. default = min - epsilon.
+
+=item * ltrim - ignore this % of values on lower end.
+
+=item * rtrim - ignore this % of values on upper end.
+
+=back
+
+Either count or index must be present.
+
+NOTE: this is equivalent to frequency_distribution_ref but better suited
+for omitting sample tails and outputting pretty pictures.
+
+=cut
+
+sub histogram {
+	my $self = shift;
+	my %opt = @_;
+
+	my ($min, $max) = $self->find_boundaries( %opt );
+	# build/check index
+	my @index = @{ $opt{index} || [] };
+	if (!@index) {
+		my $n = $opt{count};
+		$n > 0 or croak (__PACKAGE__.": histogram: insufficient options (count < 1 )");
+		my $step = ($max - $min) / $n;
+		for (my $x = $min; $x <= $max; $x += $step) {
+			push @index, $x;
+		};
+	} else {
+		# sort & uniq raw index
+		my %known;
+		@index = grep { !$known{$_}++ } @index;
+		@index = sort { $a <=> $b } @index;
+		@index > 1 or croak (__PACKAGE__.": histogram: insufficient options (index < 2)");
+	};
+
+	# finally: estimated counts between indices!
+	my @ret;
+	for ( my $i = 0; $i<@index-1; $i++) {
+		my $count = $self->_count( $index[$i], $index[$i+1] );
+		push @ret, [ $count, $index[$i], $index[$i+1] ];
+	};
+	return \@ret;
+};
+
+=head2 find_boundaries( %opt )
+
+Return ($min, $max) of part of sample denoted by options.
+
+Options may include:
+
+=over
+
+=item * min - ignore values below this. default = max + epsilon.
+
+=item * max - ignore values above this. default = min - epsilon.
+
+=item * ltrim - ignore this % of values on lower end.
+
+=item * rtrim - ignore this % of values on upper end.
+
+=back
+
+If no options are given, the whole sample is guaranteed to reside between
+returned values.
+
+=cut
+
+sub find_boundaries {
+	my $self = shift;
+	my %opt = @_;
+	# preprocess boundaries
+	my $min = defined $opt{min} ? $opt{min} : $self->_lower( $self->min );
+	my $max = defined $opt{max} ? $opt{max} : $self->_upper( $self->max );
+
+	if ($opt{ltrim}) {
+		my $newmin = $self->percentile( $opt{ltrim} );
+		defined $newmin and $newmin > $min and $min = $newmin;
+	};
+	if ($opt{utrim}) {
+		my $newmax = $self->percentile( 100-$opt{utrim} );
+		defined $newmax and $newmax < $max and $max = $newmax;
+	};
+
+	return ($min, $max);
+};
+
+################################################################
+#  No more public methods please
+
+# MEMOIZE
 # We'll keep methods' returned values under {cache}.
 # All setters destroy said cache altogether.
 # PLEASE replace this with a ready-made module if there's one.

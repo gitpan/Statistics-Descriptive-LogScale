@@ -5,6 +5,8 @@ use Test::More tests => 28;
 
 use Statistics::Descriptive::LogScale;
 
+my $inf = 9 ** 9 ** 9;
+
 my $stat = Statistics::Descriptive::LogScale->new( floor => 1, base => 2);
 
 $stat->add_data(-2, 0, 0, 4, 8);
@@ -28,8 +30,8 @@ is ($stat->_count($stat->_lower(-2)), 0, "Count(lower(min)) = 0");
 is ($stat->_count($stat->_upper(8)), 5, "Count(upper(max)) = count");
 is ($stat->_count(0,2), 1, "count( 2 args )");
 
-is ($stat->cdf("-inf"), 0, "CDF(-inf) = 0");
-is ($stat->cdf("+inf"), 1, "CDF(+inf) = 1");
+is ($stat->cdf(-$inf), 0, "CDF(-inf) = 0");
+is ($stat->cdf(+$inf), 1, "CDF(+inf) = 1");
 is ($stat->cdf(0), 0.4, "CDF(0) = 0.4");
 note "The rest of CDF is tested by _count";
 

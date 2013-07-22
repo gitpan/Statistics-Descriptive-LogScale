@@ -1,0 +1,23 @@
+Features TBD:
+
++ histogram(+ min, max, [rl]trim, n) returning [[ height, low, high ], ... ]
++ sample scaling (aka "forget gradually")
+* clone( + min, max, zero_thresh, base, ... )
+* cdf( $x, $y ) for intervals
+* generate (random var with $self's distribution)
+* remove_data( )
+* total_abs_error, mean_abs_error - think more
+* linear interval around zero
+
+Cleanup:
+
+* more detailed docs on methods
+* rationale
+
+Features for discussion:
+
+* better mode algorithm
+* linear interpolation on add_data
+* how to find the bulk of a distribution
+* C++/XS library
+* analysis tools (like: Your sample looks like 45% normal (100, 15) + 35% exp (100) + 20% utter rubbish)

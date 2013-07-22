@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 use strict;
-use Test::More tests => 5;
+use Test::More tests => 9;
 
 use Statistics::Descriptive::LogScale;
 
@@ -26,6 +26,11 @@ is ($sum, $stat->count, "histogram sum == count");
 my $std_dev = sqrt( $sum2 / $n - ($sum / $n)**2 );
 cmp_ok( $std_dev, "<", 0.1, "Histogram is level");
 
+# check newer histogram interface
+my $hist2 = $stat->histogram(count => 5);
+my %hist2pp = map { $_->[2] => $_->[0] } @$hist2;
+is_deeply ( \%hist2pp, $hist, "histogram == freq_distr_ref");
+
 
 note "arbitrary cut: (-inf, 3, 6, 9, 12)";
 $hist  = $stat->frequency_distribution_ref([3, 6, 9, 12]);
@@ -41,3 +46,21 @@ for (values %$hist) {
 
 is ($n, 4, "Number of intervals as expected");
 is ($sum, $stat->count, "histogram sum == count");
+
+# check newer histogram interface
+$hist2 = $stat->histogram(index => [ -9**9, 3, 6, 9, 12 ]);
+%hist2pp = map { $_->[2] => $_->[0] } @$hist2;
+is_deeply ( \%hist2pp, $hist, "histogram == freq_distr_ref");
+
+$hist2 = $stat->histogram( count =>4, min => 0, max => 12 );
+note explain $hist2;
+%hist2pp = map { $_->[2] => $_->[0] } @$hist2;
+is_deeply ( \%hist2pp, $hist, "histogram == freq_distr_ref");
+
+# check hist2 chaining
+my @upper = map { $_->[2] } @$hist2;
+my @lower = map { $_->[1] } @$hist2;
+shift @lower;
+pop @upper;
+is_deeply( \@upper, \@lower, "upper == lower");
+
